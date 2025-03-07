@@ -1,10 +1,10 @@
-# Slide Change Screenshot App
+# Slide Snap: Automatic Screenshot Capture for Presentations
 
-This PyQt5 application automatically captures screenshots of your screen when it detects significant visual changes, such as slide transitions during a presentation. It's designed to run in the background, minimizing distractions.
+This PyQt5 application automatically captures screenshots of your screen when it detects significant visual changes, such as slide transitions during a presentation.  It's designed to run in the background, minimizing distractions.
 
 ## Features
 
-*   **Automatic Screenshot Capture:**  Captures screenshots when a visual change is detected (e.g., a slide change).
+*   **Automatic Screenshot Capture:** Captures screenshots when a visual change is detected (e.g., a slide change).
 *   **Adjustable Sensitivity:** Fine-tune the sensitivity threshold to control the amount of change required to trigger a screenshot.
 *   **Adjustable Interval:** Set the time interval (in seconds) between screen checks.
 *   **Video Detection:** Automatically pauses capturing when video playback is detected, preventing unnecessary screenshots. Resumes automatically when video stops.
@@ -27,8 +27,8 @@ This PyQt5 application automatically captures screenshots of your screen when it
 1.  **Clone the Repository:**
 
     ```bash
-    git clone https://github.com/Gelitha/Zoom-presentation-screenshot-App.git
-    cd Zoom-presentation-screenshot-App
+    git clone https://github.com/Gelitha/slide-snap.git
+    cd slide-snap
     ```
 
 2.  **_Highly Recommended:_ Use a Virtual Environment:**

@@ -404,9 +404,11 @@ class ScreenshotApp(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Slide Change Screenshot App')
+        # Start minimized
+        self.setWindowState(Qt.WindowMinimized)
         self.setGeometry(100, 100, 1000, 700)
         self.previous_screenshot = None
-        self.screenshot_interval = 1
+        self.screenshot_interval = 5 # Default to 5 seconds
         self.is_running = False
         self.base_output_path = str(Path.home() / "Screenshots")
         self.current_date_folder = ""
@@ -415,9 +417,12 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.last_video_check_time = 0
         self.video_check_interval = 5
         # --- Sensitivity ---
-        self.sensitivity = 0.02  # Initial sensitivity (2% change)
+        self.sensitivity = 0.015  # Initial sensitivity (1.5% change)
         self.adaptive_sensitivity = True  # Enable adaptive sensitivity
-        self.min_diff_pixels = 5000 # Minimum changed pixels to trigger
+        self.min_diff_pixels = 2000 # Minimum changed pixels to trigger, tuned for slides
+
+        # --- Notification Control ---
+        self.video_notification_shown = False  # Flag to track if notification has been shown
 
         # Load icon data
         self.start_icon_data = self.load_icon_data("start.png")
@@ -817,6 +822,10 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.timer.start(int(self.screenshot_interval * 1000))
         self.status_label.setText("Status: Capturing...")
         self.notification.showMessage("Capturing started.", self.start_icon_data)
+        self.video_notification_shown = False # Reset notification flag
+
+        # Minimize the window after starting capture
+        self.setWindowState(Qt.WindowMinimized)
 
 
 
@@ -831,6 +840,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.notification.showMessage("Capturing stopped.", self.stop_icon_data)
         self.paused_for_video = False
         self.progress_spinner.hide()  # Hide spinner
+        self.video_notification_shown = False  # Reset on stop
 
 
 
@@ -853,19 +863,23 @@ class ScreenshotApp(QtWidgets.QWidget):
             screenshot2_gray = cv2.cvtColor(screenshot2_np, cv2.COLOR_BGR2GRAY)
 
             diff = cv2.absdiff(screenshot1_gray, screenshot2_gray)
-            _, diff = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
-            non_zero_count = np.count_nonzero(diff)
+            _, diff_binary = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+            non_zero_count = np.count_nonzero(diff_binary)
 
-            if non_zero_count > self.sensitivity * 5:
+            if non_zero_count > self.sensitivity * 5:  # Increased threshold for video
+                # Video is playing.  Set paused_for_video to True.
                 self.paused_for_video = True
-                return True
+                return True  # Indicate that video IS playing
             else:
+                # No video detected. Set paused_for_video to False
                 self.paused_for_video = False
-                return False
+                return False  # Indicate that video is NOT playing
+
         except Exception as e:
             print(f"Error in video detection: {e}")
-            self.paused_for_video = False
+            self.paused_for_video = False # Ensure consistent state on error
             return False
+
     def _calculate_adaptive_sensitivity(self, image):
         """Calculates an adaptive sensitivity based on image content."""
         # Convert the image to grayscale if it's not already
@@ -888,13 +902,22 @@ class ScreenshotApp(QtWidgets.QWidget):
         if not self.is_running:
             return
 
+        # Check for video *before* potentially resuming. This is the key fix.
         if self.is_video_playing():
-            self.status_label.setText("Status: Paused (video detected)")
-            self.notification.showMessage("Video detected. Capture paused.", self.pause_icon_data)
-            return
-        elif self.paused_for_video:
+            if not self.video_notification_shown:
+                self.status_label.setText("Status: Paused (video detected)")
+                self.notification.showMessage("Video detected. Capture paused.", self.pause_icon_data)
+                self.video_notification_shown = True
+            return  # Exit if video is playing
+
+        # If we get here, video is NOT playing.
+
+        # Now, check if we were *previously* paused.
+        if self.paused_for_video:
+            self.video_notification_shown = False  # Reset *before* resuming
             self.status_label.setText("Status: Capturing...")
             self.notification.showMessage("Capturing resumed.", self.start_icon_data)
+            self.paused_for_video = False  # We are no longer paused
 
 
         try:

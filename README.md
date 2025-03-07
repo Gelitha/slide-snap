@@ -1,1 +1,0 @@
-# Zoom-presentation-screenshot-App

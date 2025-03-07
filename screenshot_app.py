@@ -15,6 +15,9 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QL
                              QScrollArea, QListWidget, QListWidgetItem, QMessageBox, QToolTip,
                              QStyleFactory, QFrame, QSplitter, QGridLayout, QSlider, QMenu, QAction)
 
+# Important: Import compare_ssim from skimage.metrics
+from skimage.metrics import structural_similarity as compare_ssim
+
 class NotificationBanner(QWidget):
     def __init__(self, parent=None):
         super(NotificationBanner, self).__init__(parent)
@@ -401,9 +404,10 @@ class KeyboardShortcutsDialog(QWidget):
         layout.addWidget(close_button, 0, Qt.AlignRight)
 
 class ScreenshotApp(QtWidgets.QWidget):
+    __version__ = "1.1.1" # Update version
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Slide Change Screenshot App')
+        self.setWindowTitle('Slide Snap')
         # Start minimized
         self.setWindowState(Qt.WindowMinimized)
         self.setGeometry(100, 100, 1000, 700)
@@ -417,9 +421,9 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.last_video_check_time = 0
         self.video_check_interval = 5
         # --- Sensitivity ---
-        self.sensitivity = 0.015  # Initial sensitivity (1.5% change)
+        self.sensitivity = 0.005  #  sensitivity (0.5% change)  LOWER = MORE SENSITIVE
         self.adaptive_sensitivity = True  # Enable adaptive sensitivity
-        self.min_diff_pixels = 2000 # Minimum changed pixels to trigger, tuned for slides
+        self.min_diff_pixels = 10000 #  changed pixels to trigger
 
         # --- Notification Control ---
         self.video_notification_shown = False  # Flag to track if notification has been shown
@@ -439,7 +443,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.keyboard_shortcuts_dialog = None
 
         # --- Settings ---
-        self.settings = QSettings("MyCompany", "ScreenshotApp")
+        self.settings = QSettings("MyCompany", "ScreenshotApp")  # Or "YourName", "SlideSnap"
 
         # Initialize UI elements
         self.progress_spinner = QtWidgets.QLabel()
@@ -467,7 +471,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.timer.timeout.connect(self.capture_and_compare)
 
         # --- Progress Indicator ---
-        movie = QtGui.QMovie("spinner.gif")
+        movie = QtGui.QMovie("spinner.gif")  # Make sure you have spinner.gif!
         self.progress_spinner.setMovie(movie)
         movie.start()
         self.progress_spinner.hide()
@@ -565,7 +569,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         # --- Header with app title and status ---
         header_layout = QHBoxLayout()
 
-        app_title = QLabel("Slide Change Screenshot")
+        app_title = QLabel("Slide Snap") # Updated title
         app_title.setStyleSheet("font-size: 20px; font-weight: bold;")
         header_layout.addWidget(app_title)
 
@@ -747,6 +751,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         content_layout.addWidget(thumbnail_group)
 
         # --- Open Last Screenshot and Spinner ---
+                # --- Open Last Screenshot and Spinner ---
         action_layout = QHBoxLayout()
         self.open_button = HoverButton(self.open_icon_data, 'Open Last Screenshot')
         self.open_button.clicked.connect(self.open_last_screenshot)
@@ -763,7 +768,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         content_layout.addWidget(self.mode_toggle_button)
 
         # --- Credits ---
-        credits_label = QLabel(f"Developed by Gelitha Jayawickrama - {datetime.now().year} - Version 1.1")
+        credits_label = QLabel(f"Developed by Gelitha Jayawickrama - {datetime.now().year} - Version {self.__version__}")
         credits_label.setAlignment(Qt.AlignCenter)
         credits_label.setStyleSheet("font-size: 10px; color: #777;")
         content_layout.addWidget(credits_label)
@@ -838,16 +843,14 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.timer.stop()
         self.status_label.setText("Status: Stopped")
         self.notification.showMessage("Capturing stopped.", self.stop_icon_data)
-        self.paused_for_video = False
+        self.paused_for_video = False  # Ensure this is reset
         self.progress_spinner.hide()  # Hide spinner
         self.video_notification_shown = False  # Reset on stop
-
-
 
     def is_video_playing(self):
         current_time = time.time()
         if current_time - self.last_video_check_time < self.video_check_interval:
-            return self.paused_for_video
+            return self.paused_for_video  # Use existing state if within interval
 
         self.last_video_check_time = current_time
 
@@ -856,29 +859,29 @@ class ScreenshotApp(QtWidgets.QWidget):
             screenshot1_np = np.array(screenshot1)
             screenshot1_gray = cv2.cvtColor(screenshot1_np, cv2.COLOR_BGR2GRAY)
 
-            time.sleep(0.5)
+            time.sleep(0.5)  # Short delay for video detection
 
             screenshot2 = pyautogui.screenshot()
             screenshot2_np = np.array(screenshot2)
             screenshot2_gray = cv2.cvtColor(screenshot2_np, cv2.COLOR_BGR2GRAY)
 
-            diff = cv2.absdiff(screenshot1_gray, screenshot2_gray)
-            _, diff_binary = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
-            non_zero_count = np.count_nonzero(diff_binary)
+            # Use SSIM for video detection as well
+            (score, _) = compare_ssim(screenshot1_gray, screenshot2_gray, full=True)
 
-            if non_zero_count > self.sensitivity * 5:  # Increased threshold for video
-                # Video is playing.  Set paused_for_video to True.
+            # Video is considered playing if the SSIM score is LOW (significant difference)
+            if (1 - score) > 0.1:  #  threshold for video detection (adjust as needed)
                 self.paused_for_video = True
-                return True  # Indicate that video IS playing
+                return True
             else:
-                # No video detected. Set paused_for_video to False
                 self.paused_for_video = False
-                return False  # Indicate that video is NOT playing
+                return False
 
         except Exception as e:
             print(f"Error in video detection: {e}")
-            self.paused_for_video = False # Ensure consistent state on error
-            return False
+            # IMPORTANT: If video detection fails, DO NOT set paused_for_video to True.
+            # Instead, keep the previous state.  This prevents the app from getting
+            # stuck in a paused state if the video detection has a problem.
+            return False  # Assume no video, continue checking
 
     def _calculate_adaptive_sensitivity(self, image):
         """Calculates an adaptive sensitivity based on image content."""
@@ -902,50 +905,50 @@ class ScreenshotApp(QtWidgets.QWidget):
         if not self.is_running:
             return
 
-        # Check for video *before* potentially resuming. This is the key fix.
+        # 1. Check for Video FIRST (using SSIM)
         if self.is_video_playing():
-            if not self.video_notification_shown:
+            if not self.video_notification_shown:  # Only show notification once per pause
                 self.status_label.setText("Status: Paused (video detected)")
                 self.notification.showMessage("Video detected. Capture paused.", self.pause_icon_data)
                 self.video_notification_shown = True
             return  # Exit if video is playing
 
-        # If we get here, video is NOT playing.
+        # 2. If we get here, video is NOT currently playing.
 
-        # Now, check if we were *previously* paused.
+        # 3.  If we WERE paused (but are no longer), show the resume message and reset flags.
         if self.paused_for_video:
-            self.video_notification_shown = False  # Reset *before* resuming
+            self.paused_for_video = False       # We are no longer paused
+            self.video_notification_shown = False  # Reset notification for next video
             self.status_label.setText("Status: Capturing...")
             self.notification.showMessage("Capturing resumed.", self.start_icon_data)
-            self.paused_for_video = False  # We are no longer paused
 
 
+        # 4. Proceed with screenshot comparison (if not paused for video)
         try:
             screenshot = pyautogui.screenshot()
             screenshot_np = np.array(screenshot)
             screenshot_gray = cv2.cvtColor(screenshot_np, cv2.COLOR_BGR2GRAY)
 
             if self.previous_screenshot is not None:
-                diff = cv2.absdiff(self.previous_screenshot, screenshot_gray)
-                _, diff_binary = cv2.threshold(diff, 30, 255, cv2.THRESH_BINARY)
+                # --- SSIM Comparison ---
+                (score, diff) = compare_ssim(self.previous_screenshot, screenshot_gray, full=True)
+                diff = (diff * 255).astype("uint8")
+                _, diff_binary = cv2.threshold(diff, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
                 non_zero_count = np.count_nonzero(diff_binary)
 
-                # Get the dimensions of the screenshot
+                # Get the dimensions of the screenshot (for percentage calculation, if needed)
                 height, width = screenshot_gray.shape
                 total_pixels = height * width
-
-                # Calculate the percentage of changed pixels
-                percent_changed = (non_zero_count / total_pixels) * 100
 
                 # --- Adaptive Sensitivity Logic ---
                 if self.adaptive_sensitivity:
                     current_sensitivity = self._calculate_adaptive_sensitivity(screenshot_gray)
-                    self.sensitivity_spinbox.setValue(current_sensitivity) # Update the spinbox
+                    self.sensitivity_spinbox.setValue(current_sensitivity)  # Update UI
                 else:
-                    current_sensitivity = self.sensitivity
+                    current_sensitivity = self.sensitivity  # Use the user-set value
 
-                # Check if the change is significant
-                if percent_changed > current_sensitivity and non_zero_count > self.min_diff_pixels :
+                # ---  Change Detection Decision ---
+                if (1 - score) > current_sensitivity and non_zero_count > self.min_diff_pixels:
                     filename = f'screenshot_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
                     filepath = os.path.join(self.current_date_folder, filename)
                     screenshot.save(filepath)
@@ -1005,7 +1008,7 @@ class ScreenshotApp(QtWidgets.QWidget):
              QMessageBox.critical(self, "Error", f"File does not exist: {image_path}")
 
     def add_to_history(self, filepath):
-        pass
+        pass # You can implement this if needed
 
     def update_history_list(self):
         """Updates the history list with collapsible date and hour sections."""
@@ -1051,11 +1054,12 @@ class ScreenshotApp(QtWidgets.QWidget):
 
                 for filepath, filename in sorted(dated_files[date_str][hour_str], key=lambda x: x[1], reverse=True):
                     file_item = QListWidgetItem(f"    {filename}")
-                    file_item.setData(Qt.UserRole, filepath)
+                    file_item.setData(Qt.UserRole, filepath)  # Store the filepath
                     file_item.setFont(QtGui.QFont("Arial", 10))
-                    file_item.setToolTip(filepath)
+                    file_item.setToolTip(filepath)  # Show filepath as tooltip
                     self.history_list_widget.addItem(file_item)
 
+        # Connect the itemClicked signal to open the image
         self.history_list_widget.itemClicked.connect(self.history_item_clicked)
 
     def history_item_clicked(self, item):
@@ -1335,7 +1339,7 @@ class ScreenshotApp(QtWidgets.QWidget):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    app.setStyle("Fusion")
+    app.setStyle("Fusion")  # Use the Fusion style for a modern look
     window = ScreenshotApp()
     window.show()
     sys.exit(app.exec_())

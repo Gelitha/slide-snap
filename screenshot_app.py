@@ -18,6 +18,17 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QL
 # Important: Import compare_ssim from skimage.metrics
 from skimage.metrics import structural_similarity as compare_ssim
 
+# --- Helper Function for Asset Loading ---
+def load_asset(filename):
+    """Loads an asset from the assets folder."""
+    filepath = os.path.join("assets", filename)  # Correctly joins paths
+    try:
+        with open(filepath, "rb") as f:
+            return f.read()
+    except FileNotFoundError:
+        print(f"Error: Asset file '{filepath}' not found.")
+        return None
+
 class NotificationBanner(QWidget):
     def __init__(self, parent=None):
         super(NotificationBanner, self).__init__(parent)
@@ -294,8 +305,8 @@ class ModernCollapsibleBox(QtWidgets.QWidget):
         """)
         self.toggle_button.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         # Use in-memory icon data
-        self.right_arrow_icon = self.load_icon_data("right_arrow.png")
-        self.down_arrow_icon = self.load_icon_data("down_arrow.png")
+        self.right_arrow_icon = load_asset("right_arrow.png")
+        self.down_arrow_icon = load_asset("down_arrow.png")
         self.toggle_button.setIcon(QIcon(QPixmap.fromImage(QImage.fromData(self.right_arrow_icon))))
 
         self.toggle_button.setIconSize(QtCore.QSize(16, 16))
@@ -318,11 +329,6 @@ class ModernCollapsibleBox(QtWidgets.QWidget):
         self.animation_2 = QPropertyAnimation(self, b"maximumHeight")
         self.animation_2.setDuration(250)
         self.animation_2.setEasingCurve(QEasingCurve.InOutCubic)
-
-    def load_icon_data(self, filename):
-        """Loads icon data from a file."""
-        with open(filename, "rb") as f:
-            return f.read()
 
     @QtCore.pyqtSlot()
     def on_clicked(self):
@@ -404,7 +410,7 @@ class KeyboardShortcutsDialog(QWidget):
         layout.addWidget(close_button, 0, Qt.AlignRight)
 
 class ScreenshotApp(QtWidgets.QWidget):
-    __version__ = "1.1.1" # Update version
+    __version__ = "1.1.2"
     def __init__(self):
         super().__init__()
         self.setWindowTitle('Slide Snap')
@@ -429,15 +435,16 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.video_notification_shown = False  # Flag to track if notification has been shown
 
         # Load icon data
-        self.start_icon_data = self.load_icon_data("start.png")
-        self.stop_icon_data = self.load_icon_data("stop.png")
-        self.pause_icon_data = self.load_icon_data("pause.png")
-        self.save_icon_data = self.load_icon_data("save.png")
-        self.error_icon_data = self.load_icon_data("error.png")
-        self.browse_icon_data = self.load_icon_data("browse.png")
-        self.open_icon_data = self.load_icon_data("open.png")
-        self.copy_icon_data = self.load_icon_data("copy.png")
-        self.delete_icon_data = self.load_icon_data("delete.png")
+        self.start_icon_data = load_asset("start.png")
+        self.stop_icon_data = load_asset("stop.png")
+        self.pause_icon_data = load_asset("pause.png")
+        self.save_icon_data = load_asset("save.png")
+        self.error_icon_data = load_asset("error.png")
+        self.browse_icon_data = load_asset("browse.png")
+        self.open_icon_data = load_asset("open.png")
+        self.copy_icon_data = load_asset("copy.png")
+        self.delete_icon_data = load_asset("delete.png")
+
 
         self.notification = NotificationBanner()
         self.keyboard_shortcuts_dialog = None
@@ -471,9 +478,16 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.timer.timeout.connect(self.capture_and_compare)
 
         # --- Progress Indicator ---
-        movie = QtGui.QMovie("spinner.gif")  # Make sure you have spinner.gif!
-        self.progress_spinner.setMovie(movie)
-        movie.start()
+        self.spinner_data = load_asset("spinner.gif")  # Load spinner data
+        if self.spinner_data:
+            movie = QtGui.QMovie()
+            movie.loadFromData(self.spinner_data)  # Load from data
+            self.progress_spinner.setMovie(movie)
+            movie.start()
+        else:
+            self.progress_spinner.setText("Error loading animation")
+            print("ERROR: loading spinner.gif")
+
         self.progress_spinner.hide()
 
         # --- Thumbnail Gallery ---
@@ -509,15 +523,6 @@ class ScreenshotApp(QtWidgets.QWidget):
         # Context menu for preview
         self.screenshot_label.setContextMenuPolicy(Qt.CustomContextMenu)
         self.screenshot_label.customContextMenuRequested.connect(self.show_context_menu)
-
-    def load_icon_data(self, filename):
-        """Loads icon data from a file."""
-        try:
-            with open(filename, "rb") as f:
-                return f.read()
-        except FileNotFoundError:
-            print(f"Error: Icon file '{filename}' not found.")
-            return None
 
     def setup_ui(self):
         # Main layout with splitter
@@ -760,8 +765,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         action_layout.addWidget(self.progress_spinner)
         action_layout.addStretch()
         content_layout.addLayout(action_layout)
-
-        # --- Status Area ---
+                # --- Status Area ---
         self.status_label = QLabel("Status: Idle")
         content_layout.addWidget(self.status_label)
 

@@ -21,7 +21,7 @@ from skimage.metrics import structural_similarity as compare_ssim
 # --- Helper Function for Asset Loading ---
 def load_asset(filename):
     """Loads an asset from the assets folder."""
-    filepath = os.path.join("assets", filename)  # Correctly joins paths
+    filepath = os.path.join(Path(__file__).resolve().parent, "assets", filename)
     try:
         with open(filepath, "rb") as f:
             return f.read()
@@ -453,7 +453,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.settings = QSettings("MyCompany", "ScreenshotApp")  # Or "YourName", "SlideSnap"
 
         # Initialize UI elements
-        self.progress_spinner = QtWidgets.QLabel()
+        #  Removed: self.progress_spinner = QtWidgets.QLabel()
         self.thumbnail_gallery = QScrollArea()
         self.thumbnail_widget = QWidget()
         self.thumbnail_gallery.setWidget(self.thumbnail_widget)
@@ -477,18 +477,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.capture_and_compare)
 
-        # --- Progress Indicator ---
-        self.spinner_data = load_asset("spinner.gif")  # Load spinner data
-        if self.spinner_data:
-            movie = QtGui.QMovie()
-            movie.loadFromData(self.spinner_data)  # Load from data
-            self.progress_spinner.setMovie(movie)
-            movie.start()
-        else:
-            self.progress_spinner.setText("Error loading animation")
-            print("ERROR: loading spinner.gif")
-
-        self.progress_spinner.hide()
+        # --- REMOVED: Progress Indicator and related code ---
 
         # --- Thumbnail Gallery ---
         self.thumbnail_layout.setAlignment(Qt.AlignLeft)
@@ -523,6 +512,11 @@ class ScreenshotApp(QtWidgets.QWidget):
         # Context menu for preview
         self.screenshot_label.setContextMenuPolicy(Qt.CustomContextMenu)
         self.screenshot_label.customContextMenuRequested.connect(self.show_context_menu)
+
+        # --- REMOVED:  QTimer.singleShot(0, self.load_spinner) ---
+
+
+    # --- REMOVED: def load_spinner(self): ... ---
 
     def setup_ui(self):
         # Main layout with splitter
@@ -755,17 +749,17 @@ class ScreenshotApp(QtWidgets.QWidget):
         thumbnail_group.setLayout(thumbnail_layout_outer)
         content_layout.addWidget(thumbnail_group)
 
-        # --- Open Last Screenshot and Spinner ---
-                # --- Open Last Screenshot and Spinner ---
+        # --- Open Last Screenshot ---  <- Simplified
         action_layout = QHBoxLayout()
         self.open_button = HoverButton(self.open_icon_data, 'Open Last Screenshot')
         self.open_button.clicked.connect(self.open_last_screenshot)
         self.open_button.setEnabled(False)
         action_layout.addWidget(self.open_button)
-        action_layout.addWidget(self.progress_spinner)
+        # REMOVED: action_layout.addWidget(self.progress_spinner)
         action_layout.addStretch()
         content_layout.addLayout(action_layout)
-                # --- Status Area ---
+
+        # --- Status Area ---
         self.status_label = QLabel("Status: Idle")
         content_layout.addWidget(self.status_label)
 
@@ -821,7 +815,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.stop_button.setEnabled(True)
         self.interval_spinbox.setEnabled(False)
         self.browse_button.setEnabled(False)
-        self.progress_spinner.show() # Show spinner
+        # REMOVED: self.progress_spinner.show() # Show spinner
 
         today_str = datetime.now().strftime("%Y.%m.%d")
         self.current_date_folder = os.path.join(self.base_output_path, today_str)
@@ -848,7 +842,7 @@ class ScreenshotApp(QtWidgets.QWidget):
         self.status_label.setText("Status: Stopped")
         self.notification.showMessage("Capturing stopped.", self.stop_icon_data)
         self.paused_for_video = False  # Ensure this is reset
-        self.progress_spinner.hide()  # Hide spinner
+        # REMOVED: self.progress_spinner.hide()  # Hide spinner
         self.video_notification_shown = False  # Reset on stop
 
     def is_video_playing(self):
@@ -882,9 +876,6 @@ class ScreenshotApp(QtWidgets.QWidget):
 
         except Exception as e:
             print(f"Error in video detection: {e}")
-            # IMPORTANT: If video detection fails, DO NOT set paused_for_video to True.
-            # Instead, keep the previous state.  This prevents the app from getting
-            # stuck in a paused state if the video detection has a problem.
             return False  # Assume no video, continue checking
 
     def _calculate_adaptive_sensitivity(self, image):
@@ -898,9 +889,6 @@ class ScreenshotApp(QtWidgets.QWidget):
         # Calculate the standard deviation of the pixel intensities
         std_dev = np.std(gray)
 
-        #  sensitivity based on the standard deviation.
-        #  Higher std_dev (more variation) -> lower sensitivity
-        #  Lower std_dev (less variation) -> higher sensitivity
         adaptive_sensitivity = max(0.001, min(0.05, 0.03 - (std_dev / 255) * 0.02 )) # scale and clamp
 
         return adaptive_sensitivity
